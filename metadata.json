@@ -1,0 +1,7 @@
+{
+  "name": "URE SUL 3 - ANOS FINAIS / ENSINO MÉDIO",
+  "description": "Painel de acompanhamento das formações da URE Sul 3 com cruzamento da aba Formados e indicadores reais por componente e por área.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
