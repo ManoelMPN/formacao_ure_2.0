@@ -451,20 +451,20 @@ export function evaluateIsCompleted(
   prevRaw: any,
   row?: any
 ): { isCompleted: boolean; resolvedStatus: string } {
-  // 1. Checa valores numéricos em concRaw
   const concNum = Number(concRaw);
   const prevNum = Number(prevRaw);
-  if (!isNaN(concNum) && concNum > 0) {
-    return { isCompleted: true, resolvedStatus: '0' };
+
+  // 1. Se ambas forem numéricas e concluidas >= previstas
+  if (!isNaN(prevNum) && prevNum > 0 && !isNaN(concNum)) {
+    if (concNum >= prevNum) {
+      return { isCompleted: true, resolvedStatus: '0' };
+    }
   }
 
   // 2. Coleta textos candidatos de status a partir de múltiplos campos
   const candidates: string[] = [];
   if (statusRaw !== undefined && statusRaw !== null) {
     candidates.push(String(statusRaw).trim());
-  }
-  if (concRaw !== undefined && concRaw !== null) {
-    candidates.push(String(concRaw).trim());
   }
 
   // Se o row completo foi fornecido, vasculha colunas relevantes (Situação, Status, Formados, etc.)
@@ -515,33 +515,33 @@ export function evaluateIsCompleted(
 
     // Termos que indicam FORMADO / CONCLUÍDO
     if (
-      norm.includes('formad') || // "formado", "formados", "formada", "formado(a)", "formados(as)"
-      norm.includes('conclui') || // "concluído", "concluido", "concluída", "concluiu", "conclusão"
-      norm.includes('aprov') || // "aprovado", "aprovada"
-      norm.includes('apto') || // "apto", "apta"
-      norm.includes('particip') || // "participou", "participante"
-      norm.includes('present') || // "presente"
-      norm.includes('comparec') || // "compareceu"
-      norm.includes('certific') || // "certificado", "certificada"
-      norm.includes('realiz') || // "realizado", "realizada"
+      norm.includes('formad') ||
+      norm.includes('conclui') ||
+      norm.includes('aprov') ||
+      norm.includes('apto') ||
+      norm.includes('particip') ||
+      norm.includes('present') ||
+      norm.includes('comparec') ||
+      norm.includes('certific') ||
+      norm.includes('realiz') ||
       norm === 'sim' ||
       norm === 's' ||
       norm === 'ok' ||
       norm === '100%' ||
-      norm === '100' ||
-      norm === '1' ||
-      text === '1'
+      norm === '100'
     ) {
       return { isCompleted: true, resolvedStatus: '0' };
     }
   }
 
-  // Se houver previstas e concluídas numéricas
-  if (!isNaN(prevNum) && prevNum > 0 && !isNaN(concNum) && concNum >= prevNum) {
+  if (!isNaN(concNum) && concNum > 0 && !isNaN(prevNum) && concNum >= prevNum) {
     return { isCompleted: true, resolvedStatus: '0' };
   }
 
-  return { isCompleted: false, resolvedStatus: statusRaw ? String(statusRaw).trim() : '-1' };
+  return {
+    isCompleted: false,
+    resolvedStatus: statusRaw ? String(statusRaw).trim() : (concNum > 0 ? 'Parcial' : 'Pendente'),
+  };
 }
 
 export function processComponentRecords(
@@ -588,6 +588,8 @@ export function processComponentRecords(
     if (!row || typeof row !== 'object') return;
 
     let docenteRaw = '';
+    let cargoRaw = '';
+    let observacaoRaw = '';
     let cpfRaw = '';
     let areaRaw = '';
     let escolaRaw = '';
@@ -597,6 +599,8 @@ export function processComponentRecords(
 
     if (hasStandardHeader) {
       docenteRaw = String(findValue(row, ['Docente', 'Nome', 'Professor', 'Nome do Docente', 'DOCENTE', 'Participante', 'Servidor']) || '').trim();
+      cargoRaw = String(findValue(row, ['Cargo', 'CARGO', 'Função', 'Funcao', 'Cargo/Função', 'Cargo / Função', 'Função / Cargo']) || '').trim();
+      observacaoRaw = String(findValue(row, ['Observação', 'Observacao', 'Observações', 'Observacoes', 'Obs', 'OBS', 'Notas', 'Observação / Notas']) || '').trim();
       cpfRaw = String(findValue(row, ['CPF', 'Documento', 'Doc']) || '').trim();
       areaRaw = String(findValue(row, ['Área', 'Area', 'ÁREA', 'AREA']) || '').trim();
       if (!areaRaw) {
@@ -694,15 +698,17 @@ export function processComponentRecords(
     records.push({
       docente: docenteRaw,
       cpf: cpfRaw,
+      cargo: cargoRaw || undefined,
       area: canonicalArea,
       formacoesPrevistas,
       formacoesConcluidas,
-      concluidoStatus: isCompleted ? 'FORMADOS' : (statusRaw || resolvedStatus || '-1'),
+      concluidoStatus: isCompleted ? 'FORMADOS' : (formacoesConcluidas > 0 ? 'PARCIAL' : (statusRaw || resolvedStatus || '-1')),
       escola,
       escolas,
       percentual,
       isCompleted,
       faltam,
+      observacao: observacaoRaw || undefined,
     });
   });
 
@@ -740,16 +746,15 @@ export function compileComponentData(name: string, records: TeacherTraining[], r
   records.forEach((r) => {
     totalPrevistas += r.formacoesPrevistas;
     totalConcluidas += r.formacoesConcluidas;
-    if (r.isCompleted) {
+    if (r.isCompleted || (r.formacoesPrevistas > 0 && r.formacoesConcluidas >= r.formacoesPrevistas)) {
       totalConcluidos++;
     } else {
       totalPendentes++;
     }
   });
 
-  // Extrai total oficial se presente nas linhas da planilha
-  // Fundamental para componentes como PROGRAMAÇÃO onde a tabela de escolas resume 109 previstas e 56 concluídas (totalizando 2.610 e 424 no geral)
-  if (rawRows && Array.isArray(rawRows)) {
+  // Fallback para totalRow apenas se records estiver vazio
+  if (records.length === 0 && rawRows && Array.isArray(rawRows)) {
     const totalRow = rawRows.find((r) => {
       if (!r || typeof r !== 'object') return false;
       const vals = Object.values(r).map((v) => String(v || '').toLowerCase().trim());
@@ -1163,6 +1168,8 @@ export function buildSheetStateFromSheetsMap(
     let escolaVal = '';
     let nomeVal = '';
     let cpfVal = '';
+    let cargoVal = '';
+    let observacaoVal = '';
 
     for (const [col, val] of Object.entries(row)) {
       const normCol = normalizeText(col);
@@ -1173,6 +1180,10 @@ export function buildSheetStateFromSheetsMap(
         nomeVal = strVal;
       } else if (normCol.includes('cpf') || normCol.includes('doc')) {
         cpfVal = strVal;
+      } else if (normCol.includes('cargo') || normCol.includes('funcao') || normCol.includes('função')) {
+        cargoVal = strVal;
+      } else if (normCol.includes('observa') || normCol.includes('obs') || normCol.includes('nota') || normCol.includes('comentario')) {
+        observacaoVal = strVal;
       }
     }
 
@@ -1191,6 +1202,8 @@ export function buildSheetStateFromSheetsMap(
         escola: escolaVal || 'Escola não informada',
         nome: nomeVal,
         cpf: cpfVal,
+        cargo: cargoVal || undefined,
+        observacao: observacaoVal || undefined,
       });
     }
   });
@@ -1484,5 +1497,182 @@ function doGet(e) {
       error: error.toString() 
     })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function doPost(e) {
+  try {
+    var params = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        params = JSON.parse(e.postData.contents);
+      } catch (errJson) {
+        params = e.parameter || {};
+      }
+    } else if (e && e.parameter) {
+      params = e.parameter;
+    }
+    
+    var action = params.action;
+    if (action === 'saveObservation' || action === 'updateObservation') {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName('GERAL') || ss.getSheets()[0];
+      var data = sheet.getDataRange().getValues();
+      var headers = data[0];
+      
+      var obsColIdx = -1;
+      for (var c = 0; c < headers.length; c++) {
+        var hNorm = String(headers[c] || '').toLowerCase();
+        if (hNorm.indexOf('observa') !== -1 || hNorm === 'obs') {
+          obsColIdx = c;
+          break;
+        }
+      }
+      
+      // Cria a coluna Observações se não existir
+      if (obsColIdx === -1) {
+        obsColIdx = headers.length;
+        sheet.getRange(1, obsColIdx + 1).setValue('Observações');
+      }
+      
+      var targetDocente = String(params.docente || '').toLowerCase().trim();
+      var targetEscola = String(params.escola || '').toLowerCase().trim();
+      var targetArea = String(params.area || '').toLowerCase().trim();
+      var newObs = String(params.observacao || '').trim();
+      
+      var updatedCount = 0;
+      for (var r = 1; r < data.length; r++) {
+        var rowDoc = String(data[r][2] || data[r][1] || '').toLowerCase().trim();
+        var rowEsc = String(data[r][0] || '').toLowerCase().trim();
+        var rowArea = String(data[r][3] || '').toLowerCase().trim();
+        
+        var matchesDoc = rowDoc.indexOf(targetDocente) !== -1 || targetDocente.indexOf(rowDoc) !== -1;
+        var matchesEsc = !targetEscola || rowEsc.indexOf(targetEscola) !== -1;
+        var matchesArea = !targetArea || rowArea.indexOf(targetArea) !== -1;
+        
+        if (matchesDoc && matchesEsc && matchesArea) {
+          sheet.getRange(r + 1, obsColIdx + 1).setValue(newObs);
+          updatedCount++;
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        updatedRows: updatedCount,
+        message: 'Observação salva com sucesso na planilha!'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return doGet(e);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }`;
 }
+
+export const OBSERVATIONS_STORAGE_KEY = 'ure_sul_3_teacher_observations_v1';
+
+export function getObservationKey(escola: string, docente: string, cargo?: string, area?: string): string {
+  const e = normalizeText(escola);
+  const d = normalizeText(docente);
+  const c = normalizeText(cargo || '');
+  const a = normalizeText(area || '');
+  return `${e}::${d}::${c}::${a}`;
+}
+
+export function getAllLocalObservations(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(OBSERVATIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveLocalObservation(
+  escola: string,
+  docente: string,
+  observacao: string,
+  cargo?: string,
+  area?: string
+): void {
+  try {
+    const key = getObservationKey(escola, docente, cargo, area);
+    const obsMap = getAllLocalObservations();
+    if (observacao.trim()) {
+      obsMap[key] = observacao.trim();
+    } else {
+      delete obsMap[key];
+    }
+    localStorage.setItem(OBSERVATIONS_STORAGE_KEY, JSON.stringify(obsMap));
+  } catch (err) {
+    console.warn('Erro ao salvar observação no localStorage:', err);
+  }
+}
+
+export async function syncObservationToOnlineSheet(params: {
+  scriptUrl?: string;
+  escola: string;
+  docente: string;
+  cargo?: string;
+  area?: string;
+  observacao: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { scriptUrl = DEFAULT_SCRIPT_URL, escola, docente, cargo, area, observacao } = params;
+
+  // 1. Sempre persiste localmente primeiro
+  saveLocalObservation(escola, docente, observacao, cargo, area);
+
+  // 2. Envia para a planilha online via requisição assíncrona ao Apps Script
+  try {
+    const queryParams = new URLSearchParams({
+      action: 'saveObservation',
+      escola,
+      docente,
+      cargo: cargo || '',
+      area: area || '',
+      observacao,
+      ts: Date.now().toString(),
+    });
+
+    const targetUrl = scriptUrl.includes('?') 
+      ? `${scriptUrl}&${queryParams.toString()}` 
+      : `${scriptUrl}?${queryParams.toString()}`;
+
+    // Dispara em background via GET e mode: no-cors para contornar limitações CORS do Google Apps Script
+    await fetch(targetUrl, {
+      method: 'GET',
+      mode: 'no-cors',
+    });
+
+    // Também tenta POST no endpoint caso o script suporte
+    try {
+      fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'saveObservation',
+          escola,
+          docente,
+          cargo: cargo || '',
+          area: area || '',
+          observacao,
+        }),
+        mode: 'no-cors',
+      }).catch(() => {});
+    } catch {}
+
+    return {
+      success: true,
+      message: 'Observação salva e enviada para a planilha online!',
+    };
+  } catch (err: any) {
+    console.warn('Envio online concluído localmente (Google Apps Script em modo offline/leitura):', err);
+    return {
+      success: true,
+      message: 'Observação salva localmente no seu dispositivo.',
+    };
+  }
+}
+

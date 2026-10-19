@@ -2,11 +2,14 @@ export interface TeacherGeneral {
   escola: string;
   nome: string;
   cpf?: string;
+  cargo?: string;
+  observacao?: string;
 }
 
 export interface TeacherTraining {
   cpf?: string;
   docente: string;
+  cargo?: string;
   area?: string;
   formacoesPrevistas: number;
   formacoesConcluidas: number;
@@ -16,6 +19,7 @@ export interface TeacherTraining {
   percentual: number;
   isCompleted: boolean;
   faltam: number;
+  observacao?: string;
   isSimilarMatch?: boolean;
   matchedSchoolTeacherName?: string;
   isNotFoundInBi?: boolean;
@@ -35,12 +39,14 @@ export interface ComponentData {
 export interface AttendedPendingEvaluation {
   docente: string;
   cpf?: string;
+  cargo?: string;
   escola: string;
   componente: string;
   area?: string;
   formacoesPrevistas: number;
   formacoesConcluidas: number;
   faltam: number;
+  observacao?: string;
   isSimilarMatch?: boolean;
   originalFormadosName?: string;
   matchedSchoolTeacherName?: string;
