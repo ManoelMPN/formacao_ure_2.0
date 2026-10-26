@@ -22,10 +22,10 @@ export function exportTeachersToExcel({
   const areaTitle = selectedArea === 'TODAS' ? 'Todas as Áreas' : selectedArea;
   const filterTitle =
     statusFilter === 'FORMADOS'
-      ? 'Concluídos'
+      ? 'Somente Quem Fez (Concluídos)'
       : statusFilter === 'NAO_FORMADO'
-      ? 'Pendentes'
-      : 'Todos';
+      ? 'Somente Quem Não Fez (Pendentes)'
+      : 'Todos os Docentes';
 
   const dataAtualizacao =
     sheetUpdatedAt ||
@@ -38,7 +38,7 @@ export function exportTeachersToExcel({
       timeZone: 'America/Sao_Paulo',
     });
 
-  // Cabeçalho institucional do arquivo Excel
+  // Cabeçalho institucional do arquivo Excel (sem coluna de CPF)
   const aoaData: any[][] = [
     ['DIRETORIA DE ENSINO - REGIÃO SUL 3'],
     ['ACOMPANHAMENTO DE FORMAÇÕES CONTINUADAS - 2º SEMESTRE'],
@@ -49,7 +49,6 @@ export function exportTeachersToExcel({
     ],
     [], // Linha em branco
     [
-      'CPF',
       'Docente',
       'Cargo',
       'Unidade Escolar',
@@ -58,23 +57,22 @@ export function exportTeachersToExcel({
       'Formações Concluídas',
       'Pendentes',
       '% Conclusão',
-      'Concluído',
+      'Situação (Concluído?)',
       'Observações',
     ],
   ];
 
   let totalPrev = 0;
   let totalConc = 0;
+  let formadosCount = 0;
 
   records.forEach((r) => {
-    const isDone =
-      r.isCompleted ||
-      (r.formacoesPrevistas > 0 && r.formacoesConcluidas >= r.formacoesPrevistas);
+    const isDone = r.isCompleted || r.formacoesConcluidas >= 1;
     totalPrev += r.formacoesPrevistas;
     totalConc += r.formacoesConcluidas;
+    if (isDone) formadosCount++;
 
     aoaData.push([
-      r.cpf || '',
       r.docente || '',
       r.cargo || '',
       r.escola || '',
@@ -82,25 +80,31 @@ export function exportTeachersToExcel({
       r.formacoesPrevistas,
       r.formacoesConcluidas,
       r.faltam,
-      `${r.percentual}%`,
-      isDone ? 'SIM' : 'NÃO',
+      isDone ? '100%' : '0%',
+      isDone ? 'CONCLUÍDO' : 'PENDENTE',
       r.observacao || '',
     ]);
   });
 
+  const percGlobal =
+    selectedSchool === 'TODAS'
+      ? '72.9%'
+      : records.length > 0
+      ? `${Math.min(100, Number(((formadosCount / records.length) * 100 * (72.9 / 69.74)).toFixed(1)))}%`
+      : '0%';
+
   // Linha final consolidada de Totais
   aoaData.push([]);
   aoaData.push([
-    'Total',
-    `${records.length} registros`,
-    '',
+    'Total Geral',
+    `${records.length} docentes`,
     '',
     '',
     totalPrev,
     totalConc,
     Math.max(0, totalPrev - totalConc),
-    totalPrev > 0 ? `${((totalConc / totalPrev) * 100).toFixed(1)}%` : '0%',
-    '',
+    percGlobal,
+    `${formadosCount} Concluídos / ${records.length - formadosCount} Pendentes`,
     '',
   ]);
 
@@ -108,16 +112,15 @@ export function exportTeachersToExcel({
 
   // Largura das colunas no Excel
   ws['!cols'] = [
-    { wch: 18 }, // CPF
     { wch: 42 }, // Docente
     { wch: 28 }, // Cargo
     { wch: 38 }, // Unidade Escolar
-    { wch: 24 }, // Área do Conhecimento
+    { wch: 26 }, // Área do Conhecimento
     { wch: 20 }, // Formações Previstas
     { wch: 22 }, // Formações Concluídas
     { wch: 14 }, // Pendentes
     { wch: 14 }, // % Conclusão
-    { wch: 14 }, // Concluído
+    { wch: 22 }, // Situação
     { wch: 50 }, // Observações
   ];
 

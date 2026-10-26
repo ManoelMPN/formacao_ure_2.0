@@ -499,14 +499,19 @@ export function evaluateIsCompleted(
   const concNum = Number(concRaw);
   const prevNum = Number(prevRaw);
 
-  // 1. Se ambas forem numéricas e concluidas >= previstas
+  // 1. Regra Oficial da Formação SEDUC: se o docente concluiu ao menos 1 formação (mesmo com 2 previstas na área), já conta como FORMADO
+  if (!isNaN(concNum) && concNum >= 1) {
+    return { isCompleted: true, resolvedStatus: '0' };
+  }
+
+  // 2. Se concluidas >= previstas
   if (!isNaN(prevNum) && prevNum > 0 && !isNaN(concNum)) {
     if (concNum >= prevNum) {
       return { isCompleted: true, resolvedStatus: '0' };
     }
   }
 
-  // 2. Coleta textos candidatos de status a partir de múltiplos campos
+  // 3. Coleta textos candidatos de status a partir de múltiplos campos
   const candidates: string[] = [];
   if (statusRaw !== undefined && statusRaw !== null) {
     candidates.push(String(statusRaw).trim());
@@ -532,7 +537,7 @@ export function evaluateIsCompleted(
     }
   }
 
-  // 3. Avalia cada texto candidato
+  // 4. Avalia cada texto candidato
   for (const text of candidates) {
     const norm = normalizeText(text);
     if (!norm) continue;
@@ -579,13 +584,9 @@ export function evaluateIsCompleted(
     }
   }
 
-  if (!isNaN(concNum) && concNum > 0 && !isNaN(prevNum) && concNum >= prevNum) {
-    return { isCompleted: true, resolvedStatus: '0' };
-  }
-
   return {
     isCompleted: false,
-    resolvedStatus: statusRaw ? String(statusRaw).trim() : (concNum > 0 ? 'Parcial' : 'Pendente'),
+    resolvedStatus: statusRaw ? String(statusRaw).trim() : 'Pendente',
   };
 }
 
@@ -721,23 +722,11 @@ export function processComponentRecords(
 
     let formacoesPrevistas = Number(prevRaw) || 0;
     let formacoesConcluidas = Number(concRaw) || 0;
-    if (isCompleted && formacoesConcluidas <= 0 && formacoesPrevistas > 0) {
-      formacoesConcluidas = formacoesPrevistas;
-    }
 
-    let percentual = 0;
-    if (formacoesPrevistas > 0) {
-      percentual = Math.min(100, Math.round((formacoesConcluidas / formacoesPrevistas) * 100));
-    } else if (formacoesConcluidas > 0) {
-      percentual = 100;
-    }
-    if (isCompleted && percentual === 0) {
-      percentual = 100;
-    }
-
-    const statusNum = Number(statusRaw);
-    const missingCount = (!isNaN(statusNum) && statusNum < 0) ? Math.abs(statusNum) : Math.max(0, formacoesPrevistas - formacoesConcluidas);
-    const faltam = isCompleted ? 0 : missingCount;
+    // Regra Oficial da Formação SEDUC: se o professor tem 2 formações na mesma área e concluiu ao menos 1, já conta como FORMADO
+    const isDone = isCompleted || formacoesConcluidas >= 1;
+    const percentual = isDone ? 100 : 0;
+    const faltam = isDone ? 0 : (formacoesPrevistas > 0 ? formacoesPrevistas : 1);
 
     const canonicalArea = getComponentArea(sheetName, areaRaw);
     let { escola, escolas } = resolveTeacherSchool(docenteRaw, cpfRaw, escolaRaw, lookup);
