@@ -27,24 +27,38 @@ export function exportTeachersToExcel({
       ? 'Pendentes'
       : 'Todos';
 
-  const dataAtualizacao = sheetUpdatedAt || '02/10/2026';
+  const dataAtualizacao =
+    sheetUpdatedAt ||
+    new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    });
 
   // Cabeçalho institucional do arquivo Excel
   const aoaData: any[][] = [
-    ['DIRETORIA DE ENSINO - REGIÃO URE SUL 3'],
+    ['DIRETORIA DE ENSINO - REGIÃO SUL 3'],
     ['ACOMPANHAMENTO DE FORMAÇÕES CONTINUADAS - 2º SEMESTRE'],
     [`Unidade Escolar: ${schoolTitle}`, `Área: ${areaTitle}`, `Filtro: ${filterTitle}`],
-    [`Última Atualização da Planilha: ${dataAtualizacao}`, `Emitido em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`],
+    [
+      `Última Atualização: ${dataAtualizacao}`,
+      `Emitido em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`,
+    ],
     [], // Linha em branco
     [
-      'Docente / Cargo',
+      'CPF',
+      'Docente',
+      'Cargo',
       'Unidade Escolar',
       'Área do Conhecimento',
       'Formações Previstas',
       'Formações Concluídas',
       'Pendentes',
       '% Conclusão',
-      'Concluído?',
+      'Concluído',
       'Observações',
     ],
   ];
@@ -53,16 +67,18 @@ export function exportTeachersToExcel({
   let totalConc = 0;
 
   records.forEach((r) => {
-    const isDone = r.isCompleted || (r.formacoesPrevistas > 0 && r.formacoesConcluidas >= r.formacoesPrevistas);
+    const isDone =
+      r.isCompleted ||
+      (r.formacoesPrevistas > 0 && r.formacoesConcluidas >= r.formacoesPrevistas);
     totalPrev += r.formacoesPrevistas;
     totalConc += r.formacoesConcluidas;
 
-    const cargoTexto = r.cargo ? ` - ${r.cargo}` : '';
-
     aoaData.push([
-      `${r.docente}${cargoTexto}`,
-      r.escola,
-      r.area,
+      r.cpf || '',
+      r.docente || '',
+      r.cargo || '',
+      r.escola || '',
+      r.area || '',
       r.formacoesPrevistas,
       r.formacoesConcluidas,
       r.faltam,
@@ -72,10 +88,12 @@ export function exportTeachersToExcel({
     ]);
   });
 
-  // Linha final consolidada
+  // Linha final consolidada de Totais
   aoaData.push([]);
   aoaData.push([
-    `Total: ${records.length} atribuições / docentes`,
+    'Total',
+    `${records.length} registros`,
+    '',
     '',
     '',
     totalPrev,
@@ -90,14 +108,16 @@ export function exportTeachersToExcel({
 
   // Largura das colunas no Excel
   ws['!cols'] = [
-    { wch: 50 }, // Docente / Cargo
+    { wch: 18 }, // CPF
+    { wch: 42 }, // Docente
+    { wch: 28 }, // Cargo
     { wch: 38 }, // Unidade Escolar
     { wch: 24 }, // Área do Conhecimento
     { wch: 20 }, // Formações Previstas
     { wch: 22 }, // Formações Concluídas
     { wch: 14 }, // Pendentes
     { wch: 14 }, // % Conclusão
-    { wch: 14 }, // Concluído?
+    { wch: 14 }, // Concluído
     { wch: 50 }, // Observações
   ];
 
@@ -106,7 +126,7 @@ export function exportTeachersToExcel({
 
   const cleanSchool = selectedSchool !== 'TODAS' ? `_${selectedSchool.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
   const cleanArea = selectedArea !== 'TODAS' ? `_${selectedArea.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
-  const fileName = `Formacoes_URE_Sul_3${cleanSchool}${cleanArea}.xlsx`;
+  const fileName = `Formacoes_SUL_3${cleanSchool}${cleanArea}.xlsx`;
 
   XLSX.writeFile(wb, fileName);
 }

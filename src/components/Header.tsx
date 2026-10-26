@@ -37,11 +37,6 @@ export const Header: React.FC<HeaderProps> = ({
             2º SEMESTRE
           </h2>
 
-          {/* Badge: Informações atualizadas até 02/10/2026 */}
-          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/80 border border-blue-500/40 text-[11px] sm:text-xs font-semibold text-blue-200 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span>Informações atualizadas até 02/10/2026</span>
-          </div>
 
           {/* Linha de Ações: Sincronizado com o servidor | ADM | Modo Claro/Escuro */}
           <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3 mt-4 text-xs font-semibold">
