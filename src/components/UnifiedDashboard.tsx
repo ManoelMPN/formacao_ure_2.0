@@ -285,14 +285,15 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
     const totalFormados = formedDocs.size;
     const totalNaoFormados = Math.max(0, totalDocentes - totalFormados);
 
-    // No nível geral (todas as escolas e áreas), a taxa oficial de conclusão é de 72,9%
-    // Para escolas ou áreas filtradas, calcula proporcionalmente com a mesma regra (concluiu ao menos 1)
-    let percConclusao = 72.9;
+    // Taxa Oficial de Conclusão do BI SEDUC: proporção de docentes que concluíram a formação (>= 1 formação concluída)
+    // No escopo geral da DRE Sul 3, corresponde a 78,7% (2.412 formados / 3.066 público-alvo do BI)
+    let percConclusao = 0;
     if (selectedSchool === 'TODAS' && selectedArea === 'TODAS' && statusFilter === 'TODOS') {
-      percConclusao = 72.9;
+      percConclusao = 78.7;
+    } else if (totalDocentes > 0) {
+      percConclusao = Number(((totalFormados / totalDocentes) * 100).toFixed(1));
     } else if (totalAtribuicoes > 0) {
-      const rawPerc = (formedAssignments / totalAtribuicoes) * 100;
-      percConclusao = Math.min(100, Number((rawPerc * (72.9 / 69.74)).toFixed(1)));
+      percConclusao = Number(((formedAssignments / totalAtribuicoes) * 100).toFixed(1));
     }
 
     return {
@@ -341,8 +342,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
         }
       });
 
-      const rawPerc = recsInArea.length > 0 ? (formedCount / recsInArea.length) * 100 : 0;
-      const perc = Math.min(100, Number((rawPerc * (72.9 / 69.74)).toFixed(1)));
+      const perc = recsInArea.length > 0 ? Number(((formedCount / recsInArea.length) * 100).toFixed(1)) : 0;
       const pend = Math.max(0, prev - conc);
 
       totPrev += prev;
@@ -359,7 +359,15 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
       };
     });
 
-    const percentualGlobal = 72.9;
+    const percentualGlobal =
+      totAtrib > 0
+        ? Number(
+            (
+              (rows.reduce((sum, r) => sum + (r.percentual * r.atribuicoes) / 100, 0) / totAtrib) *
+              100
+            ).toFixed(1)
+          )
+        : 0;
     const pendGlobal = Math.max(0, totPrev - totConc);
 
     return {
@@ -372,7 +380,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
     };
   }, [allRawRecords, selectedSchool]);
 
-  // 4. TABELA CONSOLIDADA POR ESCOLAS (104 ESCOLAS)
+  // 4. TABELA CONSOLIDADA POR ESCOLAS
   const schoolAggregates = useMemo(() => {
     const map = new Map<
       string,
@@ -435,8 +443,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
 
     map.forEach((val, escola) => {
       const pend = Math.max(0, val.previstas - val.concluidas);
-      const rawPerc = val.atribuicoes > 0 ? (val.formadosCount / val.atribuicoes) * 100 : 0;
-      const ind = Math.min(100, Number((rawPerc * (72.9 / 69.74)).toFixed(1)));
+      const ind = val.atribuicoes > 0 ? Number(((val.formadosCount / val.atribuicoes) * 100).toFixed(1)) : 0;
 
       list.push({
         escola,
@@ -458,15 +465,17 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
     let previstas = 0;
     let concluidas = 0;
     let atribuicoes = 0;
+    let totalFormados = 0;
 
     schoolAggregates.forEach((s) => {
       previstas += s.previstas;
       concluidas += s.concluidas;
       atribuicoes += s.atribuicoes;
+      totalFormados += (s.indicador * s.atribuicoes) / 100;
     });
 
     const pendentes = Math.max(0, previstas - concluidas);
-    const indicadorGlobal = 72.9;
+    const indicadorGlobal = atribuicoes > 0 ? Number(((totalFormados / atribuicoes) * 100).toFixed(1)) : 0;
 
     return {
       previstas,
@@ -640,7 +649,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
                       <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
-                        placeholder="Pesquisar entre as 104 escolas..."
+                        placeholder={`Pesquisar entre as ${cleanSchoolList.length} escolas...`}
                         value={schoolSearch}
                         onChange={(e) => setSchoolSearch(e.target.value)}
                         className={`w-full pl-8 pr-3 py-1.5 rounded-lg text-xs outline-hidden ${
@@ -754,7 +763,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
             className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
               isDark ? 'bg-[#0a152d] border-blue-900/60 shadow-xs' : 'bg-white border-slate-200 shadow-xs'
             } hover:border-sky-500`}
-            title="Clique para ver todas as 104 escolas"
+            title={`Clique para ver todas as ${cleanSchoolList.length} escolas`}
           >
             <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">
               Unidades Escolares
@@ -766,7 +775,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
               <SchoolIcon className="w-4 h-4 text-sky-400" />
             </div>
             <span className="text-[10px] text-slate-400 mt-1 truncate">
-              {selectedSchool === 'TODAS' ? '104 Escolas DRE Sul 3' : selectedSchool}
+              {selectedSchool === 'TODAS' ? `${cleanSchoolList.length} Escolas DRE Sul 3` : selectedSchool}
             </span>
           </button>
 
@@ -802,7 +811,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
             <span className="text-[10px] text-slate-400 mt-1">Meta total da planilha</span>
           </button>
 
-          {/* Card 3: Formações Concluídas (QUEM FEZ - CLIQUE PARA FILTRAR) */}
+          {/* Card 3: Formações Concluídas / Formados (QUEM FEZ - CLIQUE PARA FILTRAR) */}
           <button
             type="button"
             onClick={() => setStatusFilter(statusFilter === 'FORMADOS' ? 'TODOS' : 'FORMADOS')}
@@ -817,7 +826,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
           >
             <div className="flex items-center justify-between w-full">
               <span className="text-[11px] font-bold uppercase text-emerald-400 tracking-wider">
-                Quem Fez (Concluídas)
+                Quem Fez (Formados)
               </span>
               {statusFilter === 'FORMADOS' ? (
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500 text-white animate-pulse">
@@ -831,12 +840,14 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl sm:text-3xl font-black text-emerald-400">
-                {metrics.totalConcluidas.toLocaleString('pt-BR')}
+                {selectedSchool === 'TODAS' && selectedArea === 'TODAS' && statusFilter === 'TODOS'
+                  ? '2.412'
+                  : metrics.totalFormados.toLocaleString('pt-BR')}
               </span>
               <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
             </div>
             <span className="text-[10px] text-emerald-300 font-semibold mt-1">
-              {statusFilter === 'FORMADOS' ? '● Exibindo quem fez' : 'Clique para ver quem fez'}
+              {metrics.totalConcluidas.toLocaleString('pt-BR')} formações concluídas
             </span>
           </button>
 
@@ -869,12 +880,14 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl sm:text-3xl font-black text-rose-300">
-                {metrics.totalPendentes.toLocaleString('pt-BR')}
+                {selectedSchool === 'TODAS' && selectedArea === 'TODAS' && statusFilter === 'TODOS'
+                  ? (3066 - 2412).toLocaleString('pt-BR')
+                  : metrics.totalNaoFormados.toLocaleString('pt-BR')}
               </span>
               <span className="text-rose-400 font-bold text-xs">✕</span>
             </div>
             <span className="text-[10px] text-rose-300 font-semibold mt-1">
-              {statusFilter === 'NAO_FORMADO' ? '● Exibindo quem não fez' : 'Clique para ver quem não fez'}
+              {metrics.totalPendentes.toLocaleString('pt-BR')} formações pendentes
             </span>
           </button>
 
@@ -885,10 +898,10 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
             className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between col-span-2 sm:col-span-1 cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
               isDark ? 'bg-[#00204a] border-sky-600/60 shadow-xs' : 'bg-[#00204a] text-white shadow-xs'
             } hover:border-sky-400`}
-            title="Taxa oficial de conclusão da formação (72,9%)"
+            title="Indicador Oficial de Formação Presencial SEDUC (78,7%)"
           >
             <span className="text-[11px] font-bold uppercase text-sky-300 tracking-wider">
-              % Conclusão
+              % Conclusão (BI)
             </span>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl sm:text-3xl font-black text-white">
@@ -956,7 +969,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
-            <span>Escolas (104 Escolas)</span>
+            <span>Escolas ({cleanSchoolList.length} Escolas)</span>
           </button>
 
           <div className="h-5 w-px bg-slate-700 hidden sm:block mx-1" />

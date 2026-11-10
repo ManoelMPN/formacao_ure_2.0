@@ -57,7 +57,7 @@ export function exportTeachersToPdf({
   doc.text('Relatório Oficial de Formação Docente - Indicadores de Conclusão', 14, 20);
 
   // 3. Bloco de Metadados e Indicadores Coloridos
-  const schoolLabel = selectedSchool === 'TODAS' ? 'Todas as Escolas (104 Escolas)' : selectedSchool;
+  const schoolLabel = selectedSchool === 'TODAS' ? `Todas as Escolas (${new Set(records.map(r => r.escola).filter(e => e && !e.includes('vinculada'))).size} Escolas)` : selectedSchool;
   const areaLabel = selectedArea && selectedArea !== 'TODAS' ? selectedArea : 'Todas as Áreas';
   const filterLabel =
     statusFilter === 'TODOS'
@@ -164,12 +164,7 @@ export function exportTeachersToPdf({
     ];
   });
 
-  const percGlobal =
-    selectedSchool === 'TODAS'
-      ? '72.9%'
-      : records.length > 0
-      ? `${Math.min(100, Number(((formadosCount / records.length) * 100 * (72.9 / 69.74)).toFixed(1)))}%`
-      : '0%';
+  const percGlobal = records.length > 0 ? `${((formadosCount / records.length) * 100).toFixed(1)}%` : '0%';
 
   autoTable(doc, {
     startY: 45,

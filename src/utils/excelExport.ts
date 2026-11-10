@@ -86,12 +86,7 @@ export function exportTeachersToExcel({
     ]);
   });
 
-  const percGlobal =
-    selectedSchool === 'TODAS'
-      ? '72.9%'
-      : records.length > 0
-      ? `${Math.min(100, Number(((formadosCount / records.length) * 100 * (72.9 / 69.74)).toFixed(1)))}%`
-      : '0%';
+  const percGlobal = records.length > 0 ? `${((formadosCount / records.length) * 100).toFixed(1)}%` : '0%';
 
   // Linha final consolidada de Totais
   aoaData.push([]);
